@@ -217,13 +217,9 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
         
         # self.img1b.setImage(self.roi.getArrayRegion(image, self.img1a), levels=(0, image.max()))
         self.fringes = np.mean(self.roi.getArrayRegion(image, self.img1a),axis = 1)
-        print('before window')
-        print(len(self.fringes))
-        print(self.fringes.size)
         print(self.do_Window(self.fringes.size,self.w))
-        print(self.w)
         self.fringes = self.fringes*self.do_Window(self.fringes.size,self.w)
-        print('after window')
+
 
         # S = ft(self.fringes)
 
