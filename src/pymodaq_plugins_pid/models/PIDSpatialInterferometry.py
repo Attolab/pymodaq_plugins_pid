@@ -16,6 +16,7 @@ from pymodaq.daq_utils.plotting.viewer1D.viewer1D_main import Viewer1D
 from pymodaq.daq_utils.daq_utils import Axis
 from pymodaq.daq_utils.daq_utils import   DataFromPlugins
 from pymodaq.daq_utils.math_utils import ft,ift
+from pymodaq.daq_utils import config as configmod
 
 
 
@@ -23,7 +24,7 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
     limits = dict(max=dict(state=False, value=1),
                   min=dict(state=False, value=-1),)
     konstants = dict(kp=1.0, ki=0.0, kd=0.0)
-
+    config = configmod.Config()
     Nsetpoint = 1
     setpoint_ini = [2. for ind in range(Nsetpoint)]
     # actuators = ['Move 01']
@@ -37,12 +38,13 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
             {'title': 'Omega max', 'name': 'omega_max', 'type': 'float', 'value': 1.0}]},
         {'title': 'Inverse Fourier', 'name':'inverse_fourier','type': 'group', 'expanded': True, 'visible': True,
         'children': [
-            {'title': 'N sampling (power of 2)', 'name': 'N_samp_power', 'type': 'float', 'value':13 },
             {'title': 'Centering', 'name': 'centering', 'type': 'bool', 'value':True },
             {'title': 'ROI', 'name': 'ifft_roi', 'type': 'group', 'expanded':True,'visible':True,
             'children':[
                 {'title': 't min','name':'t_min','type' : 'float','value' : 0.0},
                 {'title': 't max','name':'t_max','type' : 'float','value' : 1.0}]}]},
+        {'title': 'N sampling (power of 2)', 'name': 'N_samp_power', 'type': 'int', 'value':15 },
+        {'title':'Window', 'name': 'window', 'type': 'int', 'value': 0},
         {'title': 'Wavelength (nm)','name' : 'lambda_0','type':'float','value' : 633},
         {'title': 'Nbr of shots for RMS','name' : 'N_rms','type':'int','value' : 50},
         {'title': 'Show plots', 'name': 'show_plots', 'type': 'group', 'expanded': True, 'visible': True,
@@ -51,7 +53,6 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
              {'title': 'Show ROI', 'name': 'show_roi', 'type': 'bool', 'value':True },
              {'title': 'Show FFT', 'name': 'show_fft', 'type': 'bool', 'value':True },
              {'title': 'Show phase', 'name': 'show_phase', 'type': 'bool', 'value':True }]}
-         
     ]
 
 
@@ -145,8 +146,10 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
 
 
         self.N_rms = self.settings.child('N_rms').value()
+        self.N_samp = self.settings.child('N_samp_power').value()
         self.delays = np.zeros(self.N_rms)
         self.i_loop = 0
+        self.w = self.settings.child('window').value()
         
 
 
@@ -166,6 +169,7 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
         ----------
         param: (Parameter) instance of Parameter object
         """
+
         if param.name() == 'show_camera':
             if  not param.value():
                 self.d1.hide()
@@ -186,7 +190,12 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
                 self.ph.hide()
             else :
                 self.ph.show()
-
+        if param.name() == 'N_samp_power':
+            print('I changed ')
+            self.N_samp = self.settings.child('N_samp_power').value()
+        if param.name() == 'window':
+            self.w = self.settings.child('window').value()
+            
             
 
     def ini_model(self):
@@ -203,22 +212,32 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
         -------
         tuple: the coordinate of the center of the beam
         """
-
         key = list(measurements['CameraTIS']['data2D'].keys())[0]  # so it can also be used from another plugin having another key
         image = np.array(measurements['CameraTIS']['data2D'][key]['data'])
         
         # self.img1b.setImage(self.roi.getArrayRegion(image, self.img1a), levels=(0, image.max()))
-        self.fringes = np.mean(self.roi.getArrayRegion(image, self.img1a),axis = 0)
+        self.fringes = np.mean(self.roi.getArrayRegion(image, self.img1a),axis = 1)
+        print('before window')
+        print(len(self.fringes))
+        print(self.fringes.size)
+        print(self.do_Window(self.fringes.size,self.w))
+        print(self.w)
+        self.fringes = self.fringes*self.do_Window(self.fringes.size,self.w)
+        print('after window')
 
-        S = ft(self.fringes)
+        # S = ft(self.fringes)
+
+        S = fft.fftn(self.fringes, s=2**(self.N_samp))
+        S = S[:int(2**self.N_samp/2)]
 
         
-        x_min = int(self.lr.getRegion()[0])
+        # x_min = int(self.lr.getRegion()[0])
         x_max = int(self.lr.getRegion()[1])
         # phase_roi = np.unwrap(np.angle(S[x_min:x_max]))   
-
-        phase_roi = np.angle(S)[x_max]
-     
+        try:
+            phase_roi = np.angle(S)[x_max]
+        except:
+            print('There is a problem')
         
         if self.settings.child('show_plots','show_camera').value():
             self.img1a.setImage(image)
@@ -247,10 +266,7 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
             
         self.delays[self.i_loop] = self.phi_time
 
-        # self.delays[self.i_loop%(self.N_rms - 1)] = self.phi_time
-        # if self.i_loop > self.N_rms - 1:
-        #     print(np.std(self.delays))
-        # self.i_loop += 1
+  
         return InputFromDetector([self.phi])
 
 
@@ -277,6 +293,34 @@ class PIDModelSpetralInterferometry(PIDModelGeneric):
 
 
 
+
+    def do_Window(self, N,index,beta = 1): #Function to get windows according to index used
+
+        if index == 0:
+
+            W = np.ones(N)        
+
+        elif index == 1:
+
+            W = windows.hamming(N)
+
+        elif index == 2:
+
+            W = windows.hann(N)
+
+        elif index == 3:
+
+            W = windows.kaiser(N,beta)
+
+        elif index == 4:
+
+            W = windows.blackman(N)
+
+        else:
+
+            W = np.ones(N)
+
+        return W     
 
 
 def main():
@@ -327,5 +371,8 @@ def main():
 if __name__ == '__main__':
     main()
 
+
+#pour la liste
+#{'title':'Window', 'name': 'window', 'type': 'list', 'value': config('Rect', 'Hann','Ham','Kaiser','Blackman')}
 
 
