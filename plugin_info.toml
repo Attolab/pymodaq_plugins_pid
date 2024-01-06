@@ -1,7 +1,7 @@
 [plugin-info]
 ## To modify by developper(s) of the plugin
 SHORT_PLUGIN_NAME = 'pid'
-package-url = 'https://github.com/CEMES-CNRS/pymodaq_plugins_pid'
+package-url = 'https://github.com/PyMoDAQ/pymodaq_plugins_pid'
 description = 'Set of base PyMoDAQ plugins including Mock ones for pid development'
 
 author = 'Sébastien Weber'

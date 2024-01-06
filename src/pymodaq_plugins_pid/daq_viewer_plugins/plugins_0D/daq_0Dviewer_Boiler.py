@@ -2,11 +2,11 @@ from qtpy import QtWidgets
 from qtpy.QtCore import Signal, QThread
 from pymodaq.daq_utils.daq_utils import ThreadCommand, getLineInfo, DataFromPlugins
 import numpy as np
-from pymodaq.daq_viewer.utility_classes import DAQ_Viewer_base
+from pymodaq.control_modules.viewer_utility_classes import DAQ_Viewer_base
 from easydict import EasyDict as edict
 from collections import OrderedDict
 from pymodaq.daq_utils.daq_utils import gauss1D
-from pymodaq.daq_viewer.utility_classes import comon_parameters
+from pymodaq.control_modules.viewer_utility_classes import comon_parameters
 from pymodaq_plugins_pid.hardware.boiler import BoilerController
 
 class DAQ_0DViewer_Boiler(DAQ_Viewer_base):
@@ -18,8 +18,11 @@ class DAQ_0DViewer_Boiler(DAQ_Viewer_base):
         *ind_data*      int
         =============== =================
     """
-    params = comon_parameters + [{'title:': 'Noise', 'name': 'noise', 'type': 'float',
-                                  'value': BoilerController._noise}]
+    params = comon_parameters +\
+             [{'title:': 'Noise', 'name': 'noise', 'type': 'float', 'value': BoilerController._noise},
+              {'title:': 'Ambiant temp', 'name': 'ambiant_temp', 'type': 'float',
+               'value': BoilerController._ambiant_temperature}
+              ]
 
 
     def __init__(self, parent=None,
@@ -42,6 +45,8 @@ class DAQ_0DViewer_Boiler(DAQ_Viewer_base):
         """
         if param.name() == 'noise':
             self.controller.noise = param.value()
+        elif param.name() == 'ambiant_temp':
+            self.controller.ambiant_temp = param.value()
 
 
     def ini_detector(self, controller=None):
